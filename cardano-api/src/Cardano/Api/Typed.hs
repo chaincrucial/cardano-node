@@ -442,6 +442,7 @@ import           Ouroboros.Consensus.Cardano.ShelleyHFC (ShelleyBlockHFC)
 import qualified Cardano.Crypto.DSIGN.Class as Crypto
 import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Crypto.KES.Class as Crypto
+import qualified Cardano.Crypto.Libsodium as Crypto
 import qualified Cardano.Crypto.Seed as Crypto
 import qualified Cardano.Crypto.Util as Crypto
 import qualified Cardano.Crypto.VRF.Class as Crypto
@@ -463,7 +464,8 @@ import qualified Cardano.Chain.UTxO as Byron
 --
 -- Shelley imports
 --
-import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto, StandardShelley)
+import           Ouroboros.Consensus.Shelley.Eras (StandardShelley)
+import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
 
 import qualified Cardano.Ledger.Crypto as Shelley (DSIGN, KES, VRF)
 
@@ -4497,8 +4499,11 @@ instance Key KesKey where
       deriving anyclass SerialiseAsCBOR
 
     deterministicSigningKey :: AsType KesKey -> Crypto.Seed -> SigningKey KesKey
-    deterministicSigningKey AsKesKey seed =
-        KesSigningKey (Crypto.genKeyKES seed)
+    deterministicSigningKey AsKesKey =
+        KesSigningKey
+          . Crypto.genKeyKES
+          . Crypto.mlsbFromByteString
+          . Crypto.getSeedBytes
 
     deterministicSigningKeySeedSize :: AsType KesKey -> Word
     deterministicSigningKeySeedSize AsKesKey =

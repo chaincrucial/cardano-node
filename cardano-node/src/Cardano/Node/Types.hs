@@ -42,6 +42,8 @@ module Cardano.Node.Types
   , NodeHardForkProtocolConfiguration(..)
   , NodeProtocolConfiguration(..)
   , NodeShelleyProtocolConfiguration(..)
+  , NodeAllegraProtocolConfiguration(..)
+  , NodeMaryProtocolConfiguration(..)
   , ViewMode(..)
   , VRFPrivateKeyFilePermissionError(..)
   , protocolName
@@ -57,8 +59,8 @@ import qualified Data.IP as IP
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Network.Socket (PortNumber, SockAddr (..))
 import qualified Network.DNS as DNS (Domain)
+import           Network.Socket (PortNumber, SockAddr (..))
 
 import           Cardano.Api.Typed (EpochNo)
 import qualified Cardano.Chain.Update as Byron
@@ -276,8 +278,22 @@ data NodeProtocolConfiguration =
      | NodeProtocolConfigurationShelley NodeShelleyProtocolConfiguration
      | NodeProtocolConfigurationCardano NodeByronProtocolConfiguration
                                         NodeShelleyProtocolConfiguration
+                                        NodeAllegraProtocolConfiguration
+                                        NodeMaryProtocolConfiguration
                                         NodeHardForkProtocolConfiguration
   deriving (Eq, Show)
+
+-- | Node configuration for the Mary protocol.
+data NodeMaryProtocolConfiguration = NodeMaryProtocolConfiguration
+  { npcMarySupportedProtocolVersionMajor :: !Natural
+  , npcMarySupportedProtocolVersionMinor :: !Natural
+  } deriving (Eq, Show)
+
+-- | Node configuration for the Allegra protocol.
+data NodeAllegraProtocolConfiguration = NodeAllegraProtocolConfiguration
+  { npcAllegraSupportedProtocolVersionMajor :: !Natural
+  , npcAllegraSupportedProtocolVersionMinor :: !Natural
+  } deriving (Eq, Show)
 
 data NodeShelleyProtocolConfiguration =
      NodeShelleyProtocolConfiguration {
@@ -293,11 +309,6 @@ data NodeShelleyProtocolConfiguration =
        --
      , npcShelleySupportedProtocolVersionMajor :: !Natural
      , npcShelleySupportedProtocolVersionMinor :: !Natural
-
-       -- | The maximum major version of the protocol this node supports.
-       -- If the actual version ever goes higher than this then the node
-       -- will stop with an appropriate error message.
-     , npcShelleyMaxSupportedProtocolVersion :: !Natural
      }
   deriving (Eq, Show)
 
@@ -355,6 +366,54 @@ data NodeHardForkProtocolConfiguration =
        -- configured the same, or they will disagree.
        --
      , npcTestShelleyHardForkAtVersion :: Maybe Word
+
+       -- | If we have knowledge about when the Allegra hard fork is then we
+       -- have an opportunity to optimise the bulk sync slightly.
+       --
+     , npcAllegraHardForkNotBeforeEpoch :: Maybe EpochNo
+
+       -- | For testing purposes we support specifying that the hard fork
+       -- happens at an exact epoch number (ie the first epoch of the new era).
+       --
+       -- Obviously if this is used, all the nodes in the test cluster must be
+       -- configured the same, or they will disagree.
+       --
+     , npcTestAllegraHardForkAtEpoch :: Maybe EpochNo
+
+       -- | For testing purposes we support specifying that the hard fork
+       -- happens at a given major protocol version. For example this can be
+       -- used to cause the Shelley hard fork to occur at the transition from
+       -- protocol version 1 to version 2 (rather than the default of from 2 to
+       -- 3) which can make the test setup simpler.
+       --
+       -- Obviously if this is used, all the nodes in the test cluster must be
+       -- configured the same, or they will disagree.
+       --
+     , npcTestAllegraHardForkAtVersion :: Maybe Word
+
+       -- | If we have knowledge about when the Mary hard fork is then we have
+       -- an opportunity to optimise the bulk sync slightly.
+       --
+     , npcTestMaryHardForkAtEpoch :: Maybe EpochNo
+
+       -- | For testing purposes we support specifying that the hard fork
+       -- happens at an exact epoch number (ie the first epoch of the new era).
+       --
+       -- Obviously if this is used, all the nodes in the test cluster must be
+       -- configured the same, or they will disagree.
+       --
+     , npcTestMaryHardForkAtVersion :: Maybe Word
+
+       -- | For testing purposes we support specifying that the hard fork
+       -- happens at a given major protocol version. For example this can be
+       -- used to cause the Mary hard fork to occur at the transition from
+       -- protocol version 2 to version 3 (rather than the default of from 3 to
+       -- 4) which can make the test setup simpler.
+       --
+       -- Obviously if this is used, all the nodes in the test cluster must be
+       -- configured the same, or they will disagree.
+       --
+     , npcMaryHardForkNotBeforeEpoch :: Maybe EpochNo
      }
   deriving (Eq, Show)
 
@@ -375,9 +434,11 @@ instance AdjustFilePaths NodeProtocolConfiguration where
   adjustFilePaths f (NodeProtocolConfigurationShelley pc) =
     NodeProtocolConfigurationShelley (adjustFilePaths f pc)
 
-  adjustFilePaths f (NodeProtocolConfigurationCardano pcb pcs pch) =
+  adjustFilePaths f (NodeProtocolConfigurationCardano pcb pcs pca pcm pch) =
     NodeProtocolConfigurationCardano (adjustFilePaths f pcb)
                                      (adjustFilePaths f pcs)
+                                     pca
+                                     pcm
                                      pch
 
 instance AdjustFilePaths NodeByronProtocolConfiguration where
@@ -410,9 +471,11 @@ instance AdjustFilePaths (Last NodeProtocolConfiguration) where
   adjustFilePaths f (Last (Just (NodeProtocolConfigurationShelley pc))) =
     Last . Just $ NodeProtocolConfigurationShelley (adjustFilePaths f pc)
 
-  adjustFilePaths f (Last (Just (NodeProtocolConfigurationCardano pcb pcs pch))) =
+  adjustFilePaths f (Last (Just (NodeProtocolConfigurationCardano pcb pcs pca pcm pch))) =
     Last . Just $ NodeProtocolConfigurationCardano (adjustFilePaths f pcb)
                                                    (adjustFilePaths f pcs)
+                                                   pca
+                                                   pcm
                                                    pch
   adjustFilePaths _ (Last Nothing) = Last Nothing
 
@@ -443,4 +506,3 @@ renderVRFPrivateKeyFilePermissionError err =
     GroupPermissionsExist fp ->
       "VRF private key file at: " <> Text.pack fp
       <> "has \"group\" file permissions. Please remove all \"group\" file permissions."
-
