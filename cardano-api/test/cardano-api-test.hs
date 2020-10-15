@@ -1,5 +1,6 @@
 
 import           Cardano.Prelude
+import           Cardano.Crypto.Libsodium (sodiumInit)
 
 import           Test.Tasty (TestTree, defaultMain, testGroup)
 
@@ -13,7 +14,8 @@ import qualified Test.Cardano.Api.Typed.MultiSigScript
 import qualified Test.Cardano.Api.Typed.RawBytes
 
 main :: IO ()
-main =
+main = do
+  sodiumInit
   defaultMain tests
 
 tests :: TestTree
